@@ -10,6 +10,7 @@ from util.util import plot_final_average_results, plot_save_intermediate_results
 from options.base_options import BaseOptions
 from models.rnn_gc_2 import RNN_GC
 
+HIDDEN_LAYER_NUM = 10
 
 def test(opt, num_hidden):
     """Runs a test using the RNN_GC model and saves intermediate results."""
@@ -20,15 +21,16 @@ def test(opt, num_hidden):
 
 
 if __name__ == "__main__":
-    num_test = 10
+    # num_test = 10
     opt = BaseOptions().parse()
 
     # Run tests and accumulate results
-    matrix = test(opt, num_hidden=30)
+    matrix = test(opt, num_hidden=HIDDEN_LAYER_NUM)
 
-    # Compute averages
-    matrix /= num_test
-
+    # # Compute averages
+    # matrix /= num_test
+    print(matrix)
+    
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
     ax.matshow(matrix)

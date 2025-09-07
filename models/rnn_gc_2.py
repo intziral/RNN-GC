@@ -13,6 +13,8 @@ import scipy.io as sio
 from models.custom_lstm import CustomLSTM
 from util.util import batch_sequence
 
+SIMULATION_PATH = "data.csv"
+
 class RNN_GC:
     def __init__(self, opt, num_hidden):
         self.sequence_length = opt.sequence_length
@@ -26,8 +28,7 @@ class RNN_GC:
     
     def load_data(self):
         """Loads and preprocesses data from .csv file."""
-        simulation_path = "data.csv"
-        simulation_data = pd.read_csv(simulation_path)
+        simulation_data = pd.read_csv(SIMULATION_PATH)
 
         # Normalize
         simulation_data = np.array(simulation_data)
@@ -46,7 +47,6 @@ class RNN_GC:
         Returns:
             granger_matrix: A matrix where entry (j, k) indicates the causal influence of variable j on variable k."""
         
-        # Load input data `x` (features) and `y` (targets)
         x, y = self.load_data()
 
         # Initialize the Granger causality matrix
@@ -69,7 +69,7 @@ class RNN_GC:
             tmp_y = y[:, k].reshape(-1, 1)  # Reshape target to 2D (samples x 1)
 
             channel_set = list(range(self.num_channel))  # All possible inputs
-            input_set = []  # Selected input channels
+            input_set = []
             last_error = 0  # Initialize prediction error tracker
 
             # Step-by-step input channel selection
