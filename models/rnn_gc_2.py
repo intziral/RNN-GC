@@ -1,19 +1,15 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function, division
-import os
-import copy
 import datetime
 import pandas as pd
 
 import numpy as np
 from sklearn import preprocessing
-import scipy.io as sio
 
 from models.custom_lstm import CustomLSTM
 from util.util import batch_sequence
 
-SIMULATION_PATH = "data.csv"
 
 class RNN_GC:
     def __init__(self, opt, num_hidden):
@@ -26,9 +22,9 @@ class RNN_GC:
         self.data_length = opt.data_length
         self.weight_decay = opt.weight_decay
     
-    def load_data(self):
+    def load_data(self, simulation_data):
         """Loads and preprocesses data from .csv file."""
-        simulation_data = pd.read_csv(SIMULATION_PATH)
+        # simulation_data = pd.read_csv(data_path)
 
         # Normalize
         simulation_data = np.array(simulation_data)
@@ -42,12 +38,10 @@ class RNN_GC:
         x, y = batch_sequence(data, num_shift=self.num_shift, sequence_length=self.sequence_length)
         return x, y
 
-    def nue(self):
+    def nue(self, x, y):
         """Computes Granger causality using RNN-based (LSTM) prediction errors.
         Returns:
             granger_matrix: A matrix where entry (j, k) indicates the causal influence of variable j on variable k."""
-        
-        x, y = self.load_data()
 
         # Initialize the Granger causality matrix
         granger_matrix = np.zeros((self.num_channel, self.num_channel))
