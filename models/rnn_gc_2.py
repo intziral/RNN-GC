@@ -12,19 +12,34 @@ from util.util import batch_sequence
 
 
 class RNN_GC:
-    def __init__(self, opt, num_hidden):
+    def __init__(self, opt, num_hidden, num_epochs):
         self.sequence_length = opt.sequence_length
         self.batch_size = opt.batch_size
         self.num_shift = opt.num_shift
         self.num_hidden = num_hidden
-        self.num_epoch = opt.num_epoch
+        self.num_epoch = num_epochs
         self.theta = opt.theta
         self.data_length = opt.data_length
         self.weight_decay = opt.weight_decay
     
     def load_data(self, simulation_data):
+        """Loads and preprocesses data"""
+
+        # Normalize
+        simulation_data = np.array(simulation_data)
+        self.num_channel = simulation_data.shape[1]
+
+        # Standardize and scale to [0, 1]
+        scaler = preprocessing.StandardScaler().fit(simulation_data)
+        scaled_data = scaler.transform(simulation_data)
+        data = preprocessing.MinMaxScaler().fit_transform(scaled_data)
+
+        x, y = batch_sequence(data, num_shift=self.num_shift, sequence_length=self.sequence_length)
+        return x, y
+    
+    def load_data_csv(self, simulation_data, data_path):
         """Loads and preprocesses data from .csv file."""
-        # simulation_data = pd.read_csv(data_path)
+        simulation_data = pd.read_csv(data_path)
 
         # Normalize
         simulation_data = np.array(simulation_data)

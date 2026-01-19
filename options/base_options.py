@@ -1,6 +1,5 @@
 import argparse
 
-
 class BaseOptions():
     def __init__(self):
         self.parser = argparse.ArgumentParser()
@@ -10,7 +9,7 @@ class BaseOptions():
         self.parser.add_argument('--sequence_length', type=int, default=20, help='sequence length')
         self.parser.add_argument('--batch_size', type=int, default=64, help='batch size')
         self.parser.add_argument('--num_shift', type=int, default=1, help='the step size of the sequence')
-        # self.parser.add_argument('--num_hidden', type=int, default=30, help='the number of hidden units')
+        self.parser.add_argument('--num_hidden', type=int, default=30, help='the number of hidden units')
         self.parser.add_argument('--num_epoch', type=int, default=100, help='the number of epoch')
         self.parser.add_argument('--theta', type=float, default=0.09, help='the first minimum error')
         self.parser.add_argument('--data_length', type=int, default=4096, help='length of data')

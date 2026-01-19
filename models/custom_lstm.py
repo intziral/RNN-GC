@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# from __future__ import print_function, division  # Ensures compatibility with Python 2/3 (for print and division behavior)
-
 import numpy as np
 
 # Keras modules for building the LSTM model

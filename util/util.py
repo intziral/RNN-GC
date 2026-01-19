@@ -3,7 +3,32 @@ import matplotlib.pyplot as plt
 
 import os
 
-
+def plot_dataset_structure(X, A, index):
+    T, N = X.shape
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    
+    # Time series
+    ax_ts = axes[0]
+    for i in range(N):
+        ax_ts.plot(X[:, i], label=f"Var {i+1}")
+    ax_ts.set_title(f"Dataset {index} - Time Series")
+    ax_ts.set_xlabel("Time")
+    ax_ts.set_ylabel("Value")
+    ax_ts.legend(loc='upper right', fontsize=8)
+    
+    # Causal adjacency heatmap
+    ax_causal = axes[1]
+    im = ax_causal.imshow(A, cmap='viridis', interpolation='none')
+    ax_causal.set_title(f"Structure {index} - Causal Adjacency")
+    ax_causal.set_xlabel("Target Variable")
+    ax_causal.set_ylabel("Source Variable")
+    ax_causal.set_xticks(range(N))
+    ax_causal.set_yticks(range(N))
+    fig.colorbar(im, ax=ax_causal, fraction=0.046, pad=0.04, label='Causality strength')
+    
+    plt.tight_layout()
+    plt.show()
+    
 def batch_sequence(x, sequence_length=10, num_shift=1):
     num_points = x.shape[0]
     inputs = []
