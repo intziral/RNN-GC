@@ -6,11 +6,12 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import pandas as pd
 
-from util.util import plot_dataset_structure
+from util.util import plot_dataset_structure, evaluate_gc
 from options.base_options import BaseOptions
 from models.rnn_gc_2 import RNN_GC
 
-NUM_HIDDEN = 30
+
+NUM_HIDDEN = 20
 NUM_EPOCHS = 50
 DATA_DIR = "./datasets/mackey_glass/"
 
@@ -30,7 +31,7 @@ if __name__ == "__main__":
         structure_file = DATA_DIR + f"structure_{i}.csv"
     
         data = pd.read_csv(dataset_file, header=None)
-        structure = pd.read_csv(structure_file, header=None)
+        structure = pd.read_csv(structure_file, header=None).to_numpy()
 
         datasets.append(data)
         structures.append(structure)
@@ -39,8 +40,9 @@ if __name__ == "__main__":
     # =====================
     # TESTING
     # =====================
-    matrices = []
+    gc_matrices = []
     accuracies = []
+    aucs = []
 
     for i in range(len(datasets)):
 
@@ -49,18 +51,18 @@ if __name__ == "__main__":
                         num_epochs = NUM_EPOCHS)
         x, y = rnn_gc.load_data(datasets[i])
 
-        matrix = rnn_gc.nue(x, y)
-        matrices.append(matrix)
+        gc_est = rnn_gc.nue(x, y)
+        gc_matrices.append(gc_est)
 
-        accuracy = np.mean(matrix==structures[i])
-        accuracies.append(accuracy)
-        print('Accuracy = %.2f%%' % ( 100 * accuracy))
+        metrics = evaluate_gc(gc_est, structure[i], threshold=0.0)
+        print(metrics)
+        accuracies.append(metrics["accuracy"])
         
 
     # =====================
     # PLOTTING
     # =====================
-    for i, (gc_matrix, true_matrix) in enumerate(zip(matrices, structures)):
+    for i, (gc_matrix, true_matrix) in enumerate(zip(gc_matrices, structures)):
         size = gc_matrix.shape[0]
 
         fig, axes = plt.subplots(1, 2, figsize=(8, 4))

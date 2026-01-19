@@ -148,17 +148,10 @@ class RNN_GC:
 
             print(f'Training model for output {k + 1} complete.')
 
-        # Normalize Granger matrix by residual
         granger_matrix /= var_denominator
-
-        # Set diagonal to 1 (self-causality)
         np.fill_diagonal(granger_matrix, 1)
-
-        # Ensure all values are at least 1 for log stability
         granger_matrix[granger_matrix < 1] = 1
-
-        # Take logarithm (log ratio of variances)
         granger_matrix = np.log(granger_matrix)
 
-        print(f'Training completed in {(datetime.datetime.now() - start_time).seconds} seconds.')
+        print(f"Training completed in {datetime.timedelta(seconds=int((datetime.datetime.now()-start_time).total_seconds()))}")
         return granger_matrix
