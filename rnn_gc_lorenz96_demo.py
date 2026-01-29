@@ -5,31 +5,33 @@ import os
 import matplotlib.pyplot as plt
 
 from models.lorenz import Lorenz96
-from util.util import plot_final_average_results, plot_save_intermediate_results
+from util.util import compare_est_to_true_structure
 from options.base_options import BaseOptions
-from models.rnn_gc import RNN_GC
+from models.rnn_gc_2 import RNN_GC
 
+SEQ_LENGTH = 10
 NUM_HIDDEN = 30
 NUM_EPOCHS = 100
 
 # Data parameters
-p = 20        # number of variables
-T = 500         # time series length
-F = 8.0       # Lorenz96 forcing constant
-num_sim = 1    # number of 6 
+p = 5        # number of variables
+T = 500      # time series length
+F = 8.0      # Lorenz96 forcing constant
+num_sim = 1
 seed = 42
 
 if __name__ == "__main__":
-
-    opt = BaseOptions().parse()
 
     # =====================
     # Generate Lorenz96 data
     # =====================
 
+    save_dir = f"./datasets/lorenz96"
+    os.makedirs(save_dir, exist_ok=True)
+
     datasets = []
     structures = []
-
+    
     print(f"Running {num_sim} Lorenz96 simulations...")
     print(f"p = {p}, F = {F}, T = {T}")
 
@@ -46,21 +48,14 @@ if __name__ == "__main__":
         datasets.append(data)
         structures.append(a_true)
 
-    # =====================
-    # Save simulated data
-    # =====================
-
-    save_dir = f"./datasets/lorenz96"
-    os.makedirs(save_dir, exist_ok=True)
-
-    for i in range(num_sim):
+        # Save simulated data
         np.savetxt(
-            fname=f"{save_dir}/lorenz96_data_r_{i}.csv",
-            X=datasets[i]
+            fname=f"{save_dir}/lorenz96_data_r_{i+1}.csv",
+            X=data
         )
         np.savetxt(
-            fname=f"{save_dir}/lorenz96_struct_r_{i}.csv",
-            X=structures[i]
+            fname=f"{save_dir}/lorenz96_struct_r_{i+1}.csv",
+            X=a_true
         )
 
     print("Simulated data saved.")
@@ -69,48 +64,27 @@ if __name__ == "__main__":
     # =====================
     # TESTING
     # =====================
-    matrices = []
-    accuracies = []
+
+    results_dir = f"./results/lorenz96"
+    os.makedirs(results_dir, exist_ok=True)
+
+    opt = BaseOptions().parse()
 
     for i in range(len(datasets)):
 
         rnn_gc = RNN_GC(opt,
                         num_hidden = NUM_HIDDEN,
-                        num_epochs = NUM_EPOCHS)
-        x, y = rnn_gc.load_data(datasets[i])
-        matrix = rnn_gc.nue(x, y)
-        matrices.append(matrix)
+                        num_epochs = NUM_EPOCHS,
+                        sequence_length = SEQ_LENGTH)
+        x, y = rnn_gc.load_sequence_data(datasets[i])
+        gc_est = rnn_gc.nue(x, y)
 
-        accuracy = np.mean(matrix==structures[i])
-        accuracies.append(accuracy)
-        print('Accuracy = %.2f%%' % ( 100 * accuracy))
+        compare_est_to_true_structure(gc_est, structures[i])
+
+        # Save Granger estimations
+        np.savetxt(
+            fname=f"{results_dir}/gc_est{i+1}.csv",
+            X=gc_est
+        )
+        print("Granger Causality estimation saved.")
         
-
-    # =====================
-    # PLOTTING
-    # =====================
-    for i, (gc_matrix, true_matrix) in enumerate(zip(matrices, structures)):
-        size = gc_matrix.shape[0]
-
-        fig, axes = plt.subplots(1, 2, figsize=(8, 4))
-
-        # ---- Estimated Granger causality ----
-        im0 = axes[0].imshow(gc_matrix, cmap="viridis")
-        axes[0].set_title(f"Estimated GC (run {i+1})")
-        axes[0].set_xticks(range(size))
-        axes[0].set_yticks(range(size))
-        axes[0].set_xticklabels(range(1, size + 1))
-        axes[0].set_yticklabels(range(1, size + 1))
-        fig.colorbar(im0, ax=axes[0], fraction=0.046)
-
-        # ---- True causal structure ----
-        im1 = axes[1].imshow(true_matrix, cmap="viridis")
-        axes[1].set_title("True structure")
-        axes[1].set_xticks(range(size))
-        axes[1].set_yticks(range(size))
-        axes[1].set_xticklabels(range(1, size + 1))
-        axes[1].set_yticklabels(range(1, size + 1))
-        fig.colorbar(im1, ax=axes[1], fraction=0.046)
-
-        plt.tight_layout()
-        plt.show()

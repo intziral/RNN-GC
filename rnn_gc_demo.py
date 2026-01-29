@@ -12,8 +12,8 @@ from models.rnn_gc import RNN_GC
 def test(opt, num_hidden, mode, i):
     """Runs a test using the RNN_GC model and saves intermediate results."""
     rnn_gc = RNN_GC(opt, num_hidden, mode)
-    matrix = rnn_gc.nue()
-
+    #matrix = rnn_gc.nue()
+    matrix = rnn_gc.lstm_gc()
     output_dir = "./inter_results"
     os.makedirs(output_dir, exist_ok=True)
 
@@ -22,7 +22,7 @@ def test(opt, num_hidden, mode, i):
 
 
 if __name__ == "__main__":
-    num_test = 10
+    num_test = 1
     opt = BaseOptions().parse()
 
     # Initialize matrices
@@ -42,4 +42,4 @@ if __name__ == "__main__":
     nonlinear_lag /= num_test
 
     # Plot final results
-    plot_final_average_results(linear, nonlinear, nonlinear_lag, output_dir="./", plot_idx=1)
+    plot_final_average_results(linear, nonlinear, nonlinear_lag, save_dir="./", index=1)
