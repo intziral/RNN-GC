@@ -8,6 +8,7 @@ import datetime
 import numpy as np
 from sklearn import preprocessing
 import scipy.io as sio
+import matplotlib.pyplot as plt
 
 from models.custom_lstm import CustomLSTM
 from util.util import batch_sequence
@@ -45,8 +46,9 @@ class RNN_GC:
         return x, y
 
     def lstm_gc(self):
-        x, y = self.load_sequence_data()
 
+        x, y = self.load_sequence_data()
+        
         # Init GC matrix
         granger_matrix = np.zeros((self.num_channel, self.num_channel))
 
@@ -54,52 +56,81 @@ class RNN_GC:
 
         # Train model
         lstm = CustomLSTM(num_hidden=self.num_hidden, num_channel=self.num_channel)
-        hist_res = lstm.fit(x, y, batch_size=self.batch_size, epochs=self.num_epoch)
+        lstm.fit(x, y, batch_size=self.batch_size, epochs=self.num_epoch)
 
         # Calculate residual variance for full input
-        error_full = y - lstm.predict(x)
-        var_full = np.var(error_full, axis=0)
+        var_full = np.var(y - lstm.predict(x), axis=0)
 
         # Calculate GC for each channel
-        for k in range(self.num_channel):
-            # Remove k channel from input
-            x_no_k = x.copy()
-            x_no_k[:, :, k] = 0.0
+        for i in range(self.num_channel):
+            
+            # Remove channel i from input and train new model 
+            x_i = x.copy()
+            x_i = np.delete(x, i, axis=2)
+            lstm_i = CustomLSTM(num_hidden=self.num_hidden, num_channel=x_i.shape[2])
+            lstm_i.fit(x_i, y, batch_size=self.batch_size, epochs=self.num_epoch)
 
-            # Calculate residual variance of prediction without channel k for each output
-            error_no_k = y - lstm.predict(x_no_k)
-            var_no_k = np.var(error_no_k, axis=0)
+            # Calculate residual variance without channel i
+            var_no_i = np.var(y - lstm_i.predict(x_i), axis=0)
 
-            granger_matrix[k,:] = var_no_k / var_full
+            granger_matrix[i,:] = var_no_i / var_full
         
         np.fill_diagonal(granger_matrix, 1)
         granger_matrix[granger_matrix < 1] = 1
         granger_matrix = np.log(granger_matrix)
 
-        # # Permutation test
-        # B=100
-        # alpha=0.05
-        # GC_null = np.zeros((B, self.num_channel, self.num_channel))
+        # # ---------- SURROGATES ----------
+        # n_sur = 50
+        # alpha = 0.05
+        # offset_frac = 0.1
+        # gc_sur = np.zeros((n_sur, self.num_channel, self.num_channel))
 
-        # for b in range(B):
-        #     print(f"Permutation {b+1}/{B}")
+        # for s in range(n_sur):
+        #     print(f"Surrogate {s+1}/{n_sur}")
 
-        #     for k in range(self.num_channel):
-        #         x_perm = x.copy()
-        #         for n in range(x.shape[0]):      # per sample
-        #             np.random.shuffle(x_perm[n, :, k])
+        #     x_sur = np.empty_like(x)
+        #     T = x.shape[1]
+        #     rng = np.random.default_rng()
 
-        #         y_hat_perm = lstm.predict(x_perm)
-        #         var_perm = np.var(y - y_hat_perm, axis=0)
+        #     for k in range(x.shape[2]):
+        #         offset = max(1, int(T * offset_frac / 2))
+        #         shift = rng.integers(offset, T - offset)
+        #         x_sur[:, :, k] = np.roll(x[:, :, k], shift, axis=1)
 
-        #         GC_null[b, k, :] = np.log(var_perm / var_full)
+        #     # full surrogate model
+        #     lstm_full_s = CustomLSTM(self.num_hidden, self.num_channel)
+        #     lstm_full_s.fit(x_sur, y,
+        #                     batch_size=self.batch_size,
+        #                     epochs=self.num_epoch)
 
-        # pvals = np.mean(GC_null >= granger_matrix[None, :, :], axis=0)  # p-values
-        # granger_matrix = (pvals <= alpha).astype(int)                   # Threshold GC to 0/1 based on significance
+        #     var_full_s = np.var(y - lstm_full_s.predict(x_sur), axis=0)
+
+        #     for i in range(self.num_channel):
+        #         x_i_s = np.delete(x_sur, i, axis=2)
+
+        #         lstm_i_s = CustomLSTM(self.num_hidden, x_i_s.shape[2])
+        #         lstm_i_s.fit(x_i_s, y, batch_size=self.batch_size, epochs=self.num_epoch)
+
+        #         var_no_i = np.var(y - lstm_i_s.predict(x_i), axis=0)
+
+        #         gc_sur[s, i, :] = np.log(var_no_i / var_full_s)
+
+        # # ---------- P-VALUES ----------
+        # pvals = np.zeros((self.num_channel, self.num_channel))
+        # for i in range(self.num_channel):
+        #     for j in range(self.num_channel):
+        #         pvals[i, j] = (1 + np.sum(gc_sur[:, i, j] >= granger_matrix[i, j])) / (n_sur + 1)
+
+        # significance = (pvals < alpha)
+        # np.fill_diagonal(significance, 0)
+
+        # fig = plt.figure()
+        # ax = fig.add_subplot(1, 1, 1)
+        # ax.matshow(significance)
 
         print(f"Training completed in {datetime.timedelta(seconds=int((datetime.datetime.now()-start_time).total_seconds()))}")
 
-        return granger_matrix #, hist_res
+        return granger_matrix
     
     def nue(self):
         """Computes Granger causality using RNN-based prediction errors."""
@@ -128,7 +159,9 @@ class RNN_GC:
                     tmp_set = input_set + [x_idx]
                     tmp_x = x[:, :, tmp_set]
 
-                    lstm = CustomLSTM(num_hidden=self.num_hidden, num_channel=len(tmp_set), weight_decay=self.weight_decay)
+                    lstm = CustomLSTM(num_hidden=self.num_hidden,
+                                    num_channel=len(tmp_set),
+                                    weight_decay=self.weight_decay)
                     lstm.fit(tmp_x, tmp_y, batch_size=self.batch_size, epochs=self.num_epoch)
                     tmp_error = np.mean((lstm.predict(tmp_x) - tmp_y) ** 2)
 

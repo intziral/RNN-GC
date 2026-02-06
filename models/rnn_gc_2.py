@@ -35,21 +35,12 @@ class RNN_GC:
         scaled_data = scaler.transform(simulation_data)
         data = preprocessing.MinMaxScaler().fit_transform(scaled_data)
 
-        # # Plot data
-        # fig, axarr = plt.subplots(1, 2, figsize=(16, 5))
-        # axarr[0].plot(data)
-        # axarr[0].set_xlabel('T')
-        # axarr[0].set_title('Entire time series')
-        # axarr[1].plot(data[:50])
-        # axarr[1].set_xlabel('T')
-        # axarr[1].set_title('First 50 time points')
-        # plt.tight_layout()
-        # plt.show()
-
         x, y = batch_sequence(data, num_shift=self.num_shift, sequence_length=self.sequence_length)
+
         return x, y
 
     def lstm_gc(self, x, y):
+        
         # Init GC matrix
         granger_matrix = np.zeros((self.num_channel, self.num_channel))
 
@@ -57,50 +48,33 @@ class RNN_GC:
 
         # Train model
         lstm = CustomLSTM(num_hidden=self.num_hidden, num_channel=self.num_channel)
-        hist_res = lstm.fit(x, y, batch_size=self.batch_size, epochs=self.num_epoch)
+        lstm.fit(x, y, batch_size=self.batch_size, epochs=self.num_epoch)
 
         # Calculate residual variance for full input
-        error_full = y - lstm.predict(x)
-        var_full = np.var(error_full, axis=0)
+        var_full = np.var(y - lstm.predict(x), axis=0)
 
         # Calculate GC for each channel
-        for k in range(self.num_channel):
-            # Remove k channel from input
-            x_no_k = x.copy()
-            x_no_k[:, :, k] = 0.0
+        for i in range(self.num_channel):
+            
+            # Remove channel i from input and train new model 
+            x_i = x.copy()
+            x_i = np.delete(x, i, axis=2)
+            lstm_i = CustomLSTM(num_hidden=self.num_hidden, num_channel=x_i.shape[2])
+            lstm_i.fit(x_i, y, batch_size=self.batch_size, epochs=self.num_epoch)
 
-            # Calculate residual variance of prediction without channel k for each output
-            error_no_k = y - lstm.predict(x_no_k)
-            var_no_k = np.var(error_no_k, axis=0)
+            # Calculate residual variance without channel i
+            var_no_i = np.var(y - lstm_i.predict(x_i), axis=0)
 
-            granger_matrix[k,:] = np.log(var_no_k / var_full)
+            granger_matrix[i,:] = var_no_i / var_full
         
-        np.fill_diagonal(granger_matrix, 0)
-
-        # Permutation test
-        B=100
-        alpha=0.05
-        GC_null = np.zeros((B, self.num_channel, self.num_channel))
-
-        for b in range(B):
-            print(f"Permutation {b+1}/{B}")
-
-            for k in range(self.num_channel):
-                x_perm = x.copy()
-                for n in range(x.shape[0]):      # per sample
-                    np.random.shuffle(x_perm[n, :, k])
-
-                y_hat_perm = lstm.predict(x_perm)
-                var_perm = np.var(y - y_hat_perm, axis=0)
-
-                GC_null[b, k, :] = np.log(var_perm / var_full)
-
-        pvals = np.mean(GC_null >= granger_matrix[None, :, :], axis=0)  # p-values
-        granger_matrix = (pvals <= alpha).astype(int)                   # Threshold GC to 0/1 based on significance
+        np.fill_diagonal(granger_matrix, 1)
+        granger_matrix[granger_matrix < 1] = 1
+        granger_matrix = np.log(granger_matrix)
 
         print(f"Training completed in {datetime.timedelta(seconds=int((datetime.datetime.now()-start_time).total_seconds()))}")
 
-        return granger_matrix, hist_res
+        return granger_matrix
+
     
     def nue(self, x, y):
         """Computes Granger causality using RNN-based (LSTM) prediction errors.

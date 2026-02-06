@@ -14,17 +14,13 @@ class CustomLSTM:
     def __init__(self, num_hidden, num_channel, weight_decay=0.0):
 
         self.model = Sequential()
-
         self.model.add(
             LSTM(units=num_hidden,
                 input_shape=(None, num_channel),
                 kernel_regularizer=l1(weight_decay),    # L1 regularization on input weights
                 recurrent_regularizer=l1(weight_decay)  # L1 regularization on recurrent weights
-            )
-        )
-
+            ))
         self.model.add(Dense(1))
-        
         self.model.summary()
         rms_prop = RMSprop(learning_rate=0.001, rho=0.9, epsilon=1e-6)
         self.model.compile(loss='mean_squared_error', optimizer=rms_prop)

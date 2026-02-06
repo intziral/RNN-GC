@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from sklearn.metrics import balanced_accuracy_score
 
 def batch_sequence(x, sequence_length=20, num_shift=1):
     num_points = x.shape[0]
@@ -21,6 +22,37 @@ def batch_sequence(x, sequence_length=20, num_shift=1):
     targets = targets[idx]
 
     return inputs, targets
+
+def stability_based_thresholding(gc_est, gc_est_reversed, q_num=20):
+    
+    print("Evaluating stability...")
+    p = gc_est.shape[0]
+    alphas = np.linspace(0, 1, q_num)
+    qs_1 = np.quantile(a=gc_est, q=alphas)
+    qs_2 = np.quantile(a=gc_est_reversed, q=alphas)
+    agreements = np.zeros((len(alphas), ))
+
+    for i in range(len(alphas)):
+        a_1_i = (gc_est >= qs_1[i]) * 1.0
+        a_2_i = (gc_est_reversed >= qs_2[i]) * 1.0
+        # NOTE: we ignore diagonal elements when evaluating stability
+        agreements[i] = (balanced_accuracy_score(y_true=a_2_i[np.logical_not(np.eye(a_2_i.shape[0]))].flatten(),
+                                                 y_pred=a_1_i[np.logical_not(np.eye(a_1_i.shape[0]))].flatten()) +
+                         balanced_accuracy_score(y_pred=a_2_i[np.logical_not(np.eye(a_2_i.shape[0]))].flatten(),
+                                                 y_true=a_1_i[np.logical_not(np.eye(a_1_i.shape[0]))].flatten())) / 2
+        # If only self-causal relationships are inferred, then set agreement to 0
+        if np.sum(a_1_i) <= p or np.sum(a_2_i) <= p:
+            agreements[i] = 0
+        # If all potential relationships are inferred, then set agreement to 0
+        if np.sum(a_1_i) == p**2 or np.sum(a_2_i) == p**2:
+            agreements[i] = 0
+    alpha_opt = alphas[np.argmax(agreements)]
+
+    q_1 = np.quantile(a=gc_est, q=alpha_opt)
+    gc_est_binary = (gc_est >= q_1) * 1.0
+
+    return gc_est_binary
+
 
 def compare_est_to_true_structure(gc_matrix, true_matrix):
     

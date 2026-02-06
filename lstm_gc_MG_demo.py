@@ -3,15 +3,14 @@
 import numpy as np
 import os
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from options.base_options import BaseOptions
 from models.rnn_gc_2 import RNN_GC
-from util.util import compare_est_to_true_structure, plot_loss_curves
+from util.util import compare_est_to_true_structure, stability_based_thresholding
 
-SEQ_LENGTH = 10
+SEQ_LENGTH = 20
 NUM_HIDDEN = 30
-NUM_EPOCHS = 100
+NUM_EPOCHS = 50
 DATA_DIR = "./datasets/mackey_glass/"
 
 
@@ -47,23 +46,33 @@ if __name__ == "__main__":
 
     for i in range(len(datasets)):
         
-        matrix = np.zeros((5, 5))
-        # for k in range(5):
         # Initialize model
         rnn_gc = RNN_GC(opt,
                         num_hidden = NUM_HIDDEN,
                         num_epochs = NUM_EPOCHS,
                         sequence_length = SEQ_LENGTH)
         
-        # Training and causality extraction
+        # Train and estimate GC on each network
         x, y = rnn_gc.load_sequence_data(datasets[i])
-        # gc_est = rnn_gc.nue(x, y)
-        gc_est, hist_res = rnn_gc.lstm_gc(x, y)
-        # matrix += gc_est
+        gc_est = rnn_gc.lstm_gc(x, y)
 
-        # gc_est = matrix / 5
-        # Figures
-        plot_loss_curves(hist_res)
+        # # Train and estimate GC on time-reversed data for each network
+        # reversed_data = np.flip(np.array(datasets[i]), axis=0) 
+        # x_r, y_r = rnn_gc.load_sequence_data(reversed_data)
+        # gc_est_r = rnn_gc.lstm_gc(x_r, y_r)
+        # gc_est_r = np.transpose(gc_est_r)   # A causal edge j → i in reversed time corresponds to i → j in forward time
+
+        # compare_est_to_true_structure(gc_est, gc_est_r)
+
+        # # gc_est = stability_based_thresholding(gc_est, gc_est_r)
+        # gc_est_final, best_thr, best_bacc = threshold_gc_by_time_reversal(
+        #                             gc_est,
+        #                             gc_est_r,
+        #                             n_thresholds=200)
+
+        # print("Best threshold:", best_thr)
+        # print("Best balanced accuracy:", best_bacc)
+
         compare_est_to_true_structure(gc_est, structures[i])
 
         # Save Granger estimations

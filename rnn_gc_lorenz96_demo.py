@@ -2,21 +2,20 @@
 
 import numpy as np
 import os
-import matplotlib.pyplot as plt
 
 from models.lorenz import Lorenz96
 from util.util import compare_est_to_true_structure
 from options.base_options import BaseOptions
 from models.rnn_gc_2 import RNN_GC
 
-SEQ_LENGTH = 10
+SEQ_LENGTH = 20
 NUM_HIDDEN = 30
 NUM_EPOCHS = 100
 
 # Data parameters
 p = 5        # number of variables
-T = 500      # time series length
-F = 8.0      # Lorenz96 forcing constant
+T = 1000      # time series length
+F = 10.0      # Lorenz96 forcing constant
 num_sim = 1
 seed = 42
 
