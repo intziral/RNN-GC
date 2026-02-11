@@ -2,8 +2,7 @@
 
 from __future__ import print_function, division
 import datetime
-import pandas as pd
-import matplotlib.pyplot as plt
+from statsmodels.stats.multitest import multipletests
 
 import numpy as np
 from sklearn import preprocessing
@@ -38,45 +37,8 @@ class RNN_GC:
         x, y = batch_sequence(data, num_shift=self.num_shift, sequence_length=self.sequence_length)
 
         return x, y
-
-    def lstm_gc(self, x, y):
-        
-        # Init GC matrix
-        granger_matrix = np.zeros((self.num_channel, self.num_channel))
-
-        start_time = datetime.datetime.now()
-
-        # Train model
-        lstm = CustomLSTM(num_hidden=self.num_hidden, num_channel=self.num_channel)
-        lstm.fit(x, y, batch_size=self.batch_size, epochs=self.num_epoch)
-
-        # Calculate residual variance for full input
-        var_full = np.var(y - lstm.predict(x), axis=0)
-
-        # Calculate GC for each channel
-        for i in range(self.num_channel):
-            
-            # Remove channel i from input and train new model 
-            x_i = x.copy()
-            x_i = np.delete(x, i, axis=2)
-            lstm_i = CustomLSTM(num_hidden=self.num_hidden, num_channel=x_i.shape[2])
-            lstm_i.fit(x_i, y, batch_size=self.batch_size, epochs=self.num_epoch)
-
-            # Calculate residual variance without channel i
-            var_no_i = np.var(y - lstm_i.predict(x_i), axis=0)
-
-            granger_matrix[i,:] = var_no_i / var_full
-        
-        np.fill_diagonal(granger_matrix, 1)
-        granger_matrix[granger_matrix < 1] = 1
-        granger_matrix = np.log(granger_matrix)
-
-        print(f"Training completed in {datetime.timedelta(seconds=int((datetime.datetime.now()-start_time).total_seconds()))}")
-
-        return granger_matrix
-
     
-    def nue(self, x, y):
+    def nue(self, x, y, nue=True, surrogate_testing=False):
         """Computes Granger causality using RNN-based (LSTM) prediction errors.
         Returns:
             granger_matrix: A matrix where entry (j, k) indicates the causal influence of variable j on variable k."""
@@ -88,63 +50,70 @@ class RNN_GC:
         var_denominator = np.zeros((1, self.num_channel))
 
         all_candidate = []
-        error_model = []
-        error_all = []
         hist_result = []
+        if (nue):
+            error_model = []
+            error_all = []
+        if (surrogate_testing):
+            n_sur = 50
+            alpha = 0.05
 
         start_time = datetime.datetime.now()
-
+        
         # Loop over each channel as target (i.e., trying to predict y[:, k])
         for k in range(self.num_channel):
             tmp_y = y[:, k].reshape(-1, 1)  # Reshape target to 2D (samples x 1)
+            
+            if (nue):
+                channel_set = list(range(self.num_channel))  # All possible inputs
+                input_set = []
+                last_error = 0
 
-            channel_set = list(range(self.num_channel))  # All possible inputs
-            input_set = []
-            last_error = 0
+                # Step-by-step input channel selection
+                for i in range(self.num_channel):
+                    min_error = float("inf")
+                    min_idx = None
 
-            # Step-by-step input channel selection
-            for i in range(self.num_channel):
-                min_error = float("inf")
-                min_idx = None
+                    # Try adding each remaining channel to the input set
+                    for x_idx in channel_set:
+                        tmp_set = input_set + [x_idx]
+                        tmp_x = x[:, :, tmp_set]  # Select current input set
 
-                # Try adding each remaining channel to the input set
-                for x_idx in channel_set:
-                    tmp_set = input_set + [x_idx]
-                    tmp_x = x[:, :, tmp_set]  # Select current input set
+                        # Train LSTM model
+                        lstm = CustomLSTM(num_hidden=self.num_hidden,
+                                        num_channel=len(tmp_set),
+                                        weight_decay=self.weight_decay)
+                        lstm.fit(tmp_x, tmp_y, batch_size=self.batch_size, epochs=self.num_epoch)
 
-                    # Train LSTM model
-                    lstm = CustomLSTM(num_hidden=self.num_hidden,
-                                    num_channel=len(tmp_set),
-                                    weight_decay=self.weight_decay)
-                    lstm.fit(tmp_x, tmp_y, batch_size=self.batch_size, epochs=self.num_epoch)
+                        # Compute prediction error
+                        tmp_error = np.mean((lstm.predict(tmp_x) - tmp_y) ** 2)
 
-                    # Compute prediction error
-                    tmp_error = np.mean((lstm.predict(tmp_x) - tmp_y) ** 2)
+                        # Keep the channel that gives lowest error
+                        if tmp_error < min_error:
+                            min_error = tmp_error
+                            min_idx = x_idx
 
-                    # Keep the channel that gives lowest error
-                    if tmp_error < min_error:
-                        min_error = tmp_error
-                        min_idx = x_idx
+                        # Log the error for this trial
+                        error_all.append([k, i, x_idx, tmp_error])
 
-                    # Log the error for this trial
-                    error_all.append([k, i, x_idx, tmp_error])
+                    # Store improvement between last and current error
+                    error_model.append([k, last_error, min_error])
 
-                # Store improvement between last and current error
-                error_model.append([k, last_error, min_error])
+                    # Stop adding inputs if improvement is too small
+                    if i > 0 and (abs(last_error - min_error) / last_error < self.theta or last_error < min_error):
+                        break
 
-                # Stop adding inputs if improvement is too small
-                if i > 0 and (abs(last_error - min_error) / last_error < self.theta or last_error < min_error):
-                    break
-
-                # Update input set with the selected channel
-                input_set.append(min_idx)
-                channel_set.remove(min_idx)
-                last_error = min_error
+                    # Update input set with the selected channel
+                    input_set.append(min_idx)
+                    channel_set.remove(min_idx)
+                    last_error = min_error
+            else:
+                input_set = list(range(self.num_channel))  # All possible inputs
 
             # Store final input set for this output
             all_candidate.append(input_set)
 
-            # Retrain LSTM with final input set to compute variance of residuals
+            # Train LSTM with final input set to compute variance of residuals
             lstm = CustomLSTM(num_hidden=self.num_hidden, num_channel=len(input_set))
             hist_res = lstm.fit(x[:, :, input_set], tmp_y, batch_size=self.batch_size, epochs=self.num_epoch)
             hist_result.append(hist_res)
@@ -175,5 +144,6 @@ class RNN_GC:
         granger_matrix = np.log(granger_matrix)
 
         print(f"Training completed in {datetime.timedelta(seconds=int((datetime.datetime.now()-start_time).total_seconds()))}")
+        print(f"All candidates: {all_candidate}")
 
         return granger_matrix

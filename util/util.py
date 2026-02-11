@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from sklearn.metrics import balanced_accuracy_score
 
 def batch_sequence(x, sequence_length=20, num_shift=1):
     num_points = x.shape[0]
@@ -23,37 +22,6 @@ def batch_sequence(x, sequence_length=20, num_shift=1):
 
     return inputs, targets
 
-def stability_based_thresholding(gc_est, gc_est_reversed, q_num=20):
-    
-    print("Evaluating stability...")
-    p = gc_est.shape[0]
-    alphas = np.linspace(0, 1, q_num)
-    qs_1 = np.quantile(a=gc_est, q=alphas)
-    qs_2 = np.quantile(a=gc_est_reversed, q=alphas)
-    agreements = np.zeros((len(alphas), ))
-
-    for i in range(len(alphas)):
-        a_1_i = (gc_est >= qs_1[i]) * 1.0
-        a_2_i = (gc_est_reversed >= qs_2[i]) * 1.0
-        # NOTE: we ignore diagonal elements when evaluating stability
-        agreements[i] = (balanced_accuracy_score(y_true=a_2_i[np.logical_not(np.eye(a_2_i.shape[0]))].flatten(),
-                                                 y_pred=a_1_i[np.logical_not(np.eye(a_1_i.shape[0]))].flatten()) +
-                         balanced_accuracy_score(y_pred=a_2_i[np.logical_not(np.eye(a_2_i.shape[0]))].flatten(),
-                                                 y_true=a_1_i[np.logical_not(np.eye(a_1_i.shape[0]))].flatten())) / 2
-        # If only self-causal relationships are inferred, then set agreement to 0
-        if np.sum(a_1_i) <= p or np.sum(a_2_i) <= p:
-            agreements[i] = 0
-        # If all potential relationships are inferred, then set agreement to 0
-        if np.sum(a_1_i) == p**2 or np.sum(a_2_i) == p**2:
-            agreements[i] = 0
-    alpha_opt = alphas[np.argmax(agreements)]
-
-    q_1 = np.quantile(a=gc_est, q=alpha_opt)
-    gc_est_binary = (gc_est >= q_1) * 1.0
-
-    return gc_est_binary
-
-
 def compare_est_to_true_structure(gc_matrix, true_matrix):
     
     size = gc_matrix.shape[0]
@@ -70,15 +38,47 @@ def compare_est_to_true_structure(gc_matrix, true_matrix):
     fig.colorbar(im0, ax=axes[0], fraction=0.046)
 
     # True causal structure
-    im1 = axes[1].imshow(true_matrix, cmap="viridis")
+    im2 = axes[1].imshow(true_matrix, cmap="viridis")
     axes[1].set_title("True structure")
     axes[1].set_xticks(range(size))
     axes[1].set_yticks(range(size))
     axes[1].set_xticklabels(range(1, size + 1))
     axes[1].set_yticklabels(range(1, size + 1))
-    fig.colorbar(im1, ax=axes[1], fraction=0.046)
+    fig.colorbar(im2, ax=axes[1], fraction=0.046)
 
     plt.tight_layout()
+    plt.show()
+
+def compare_sims(matrices):
+    num_sim = len(matrices)
+
+    fig, axes = plt.subplots(2, num_sim, figsize=(4.5 * num_sim, 9), constrained_layout=True)
+
+    # Ensure axes is always 2D (important if num_sim == 1)
+    if num_sim == 1:
+        axes = axes[:, None]
+
+    for i in range(num_sim):
+        gc_matrix, true_matrix = matrices[i]
+        size = gc_matrix.shape[0]
+
+        # ---------- Estimated Granger causality ----------
+        im0 = axes[0, i].imshow(gc_matrix, cmap="viridis")
+        axes[0, i].set_title(f"Sim {i+1}\nEstimated GC")
+        fig.colorbar(im0, ax=axes[0, i])
+
+        # ---------- True causal structure ----------
+        im2 = axes[1, i].imshow(true_matrix, cmap="viridis")
+        axes[1, i].set_title("True structure")
+        fig.colorbar(im2, ax=axes[1, i])
+
+        # ---------- Axis formatting ----------
+        for r in range(2):
+            axes[r, i].set_xticks(range(size))
+            axes[r, i].set_yticks(range(size))
+            axes[r, i].set_xticklabels(range(1, size + 1))
+            axes[r, i].set_yticklabels(range(1, size + 1))
+
     plt.show()
 
 def plot_loss_curves(hist_res):
@@ -124,7 +124,6 @@ def plot_final_average_results(linear, nonlinear, nonlinear_lag, save_dir, index
     ax4.set_title('Ground Truth')
 
     plt.savefig(os.path.join(save_dir, str(index).rjust(2, '0') + 'all.png'))
-
 
 def plot_save_intermediate_results(matrix, mode, index, save_dir):
     fig = plt.figure()

@@ -3,7 +3,6 @@
 from __future__ import print_function, division
 import numpy as np
 import os
-import matplotlib.pyplot as plt
 import datetime
 
 from util.util import plot_final_average_results, plot_save_intermediate_results
@@ -11,10 +10,10 @@ from options.base_options import BaseOptions
 from models.rnn_gc import RNN_GC
 
 
-def test(opt, num_hidden, mode, i):
+def test(opt, num_hidden, sequence_length, mode, i):
     """Runs a test using the RNN_GC model and saves intermediate results."""
-    rnn_gc = RNN_GC(opt, num_hidden, mode)
-    matrix = rnn_gc.nue()
+    rnn_gc = RNN_GC(opt, num_hidden, sequence_length, mode)
+    matrix = rnn_gc.newe(nue=False, perm_testing=True)
     output_dir = "./inter_results"
     os.makedirs(output_dir, exist_ok=True)
 
@@ -26,7 +25,7 @@ if __name__ == "__main__":
 
     start_time = datetime.datetime.now()
 
-    num_test = 5
+    num_test = 1
     opt = BaseOptions().parse()
 
     # Initialize matrices
@@ -36,13 +35,13 @@ if __name__ == "__main__":
 
     # Run tests and accumulate results
     for i in range(num_test):
-        # linear += test(opt, num_hidden=30, mode="linear", i=i)
-        # nonlinear += test(opt, num_hidden=13, mode="nonlinear", i=i)
-        nonlinear_lag += test(opt, num_hidden=30, mode="nonlinearlag", i=i)
+        linear += test(opt, num_hidden=30, sequence_length=20, mode="linear", i=i)
+        nonlinear += test(opt, num_hidden=30, sequence_length=20, mode="nonlinear", i=i)
+        nonlinear_lag += test(opt, num_hidden=30, sequence_length=20, mode="nonlinearlag", i=i)
 
     # Compute averages
-    # linear /= num_test
-    # nonlinear /= num_test
+    linear /= num_test
+    nonlinear /= num_test
     nonlinear_lag /= num_test
 
     print(f"Testing completed in {datetime.timedelta(seconds=int((datetime.datetime.now()-start_time).total_seconds()))}")

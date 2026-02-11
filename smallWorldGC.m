@@ -8,7 +8,7 @@ clear all; close all; clc;
 n = 2^12;            % Length of time series (default 2^11)
 N = 5;               % Number of channels/nodes
 C = 0.1;             % Coupling strength
-DeltaV = [100 * ones(N, 1), 300 * ones(N, 1)];  % Delay parameter for each channel
+DeltaV = [17 * ones(N, 1), 30 * ones(N, 1), 100 * ones(N, 1), 300 * ones(N, 1)];  % Delay parameter for each channel
 ts = 4;              % Sampling time
 
 maxtau = 200;        % Maximum lag for mutual information
